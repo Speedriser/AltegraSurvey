@@ -9,7 +9,7 @@ export default async function AppLayout({
   const { user } = await requireUser();
   return (
     <div className="min-h-screen">
-      <DashboardNav email={user.email ?? "user"} />
+      <DashboardNav email={user.email ?? "user"} userId={user.id} />
       <main className="container py-6">{children}</main>
     </div>
   );

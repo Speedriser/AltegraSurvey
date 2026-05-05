@@ -132,5 +132,31 @@ export async function POST(req: NextRequest) {
   });
   if (error) return genericFail();
 
+  // Burst detection: notify the form owner once per burst window.
+  const burstSince = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { count: burstCount } = await admin
+    .from("responses")
+    .select("id", { count: "exact", head: true })
+    .eq("form_id", form.id)
+    .eq("submitted_via", "public")
+    .gt("submitted_at", burstSince);
+  if ((burstCount ?? 0) > 20) {
+    const { count: existing } = await admin
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", form.owner_id)
+      .eq("kind", "burst_detected")
+      .is("read_at", null)
+      .gt("created_at", burstSince);
+    if (!existing) {
+      await admin.from("notifications").insert({
+        user_id: form.owner_id,
+        kind: "burst_detected",
+        message: `Unusual activity on "${form.title}": ${burstCount} public submissions in 5 minutes.`,
+        metadata: { form_id: form.id, count: burstCount },
+      });
+    }
+  }
+
   return NextResponse.json({ success: true, responseId: rpcResult });
 }
